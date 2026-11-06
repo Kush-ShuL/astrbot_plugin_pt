@@ -11,7 +11,7 @@ import aiohttp
 
 from astrbot.api import star, logger
 from astrbot.api.event import AstrMessageEvent, filter
-from astrbot.api.message_components import Image as AstrImage
+from astrbot.api.message_components import At, AtAll, Plain
 from astrbot.api.star import StarTools
 
 Image.MAX_IMAGE_PIXELS = 10_000_000
@@ -108,6 +108,35 @@ class TouchHeadPlugin(star.Star):
 
         return user_id, nickname
 
+    def _resolve_mentioned_user(
+        self, event: AstrMessageEvent
+    ) -> Optional[Tuple[str, str]]:
+        """返回首个被 @ 用户；无目标返回 None，无效提及抛出 ValueError。"""
+        self_id = str(event.get_self_id()).strip().lstrip("0")
+        has_command_text = False
+        for component in event.get_messages():
+            if isinstance(component, Plain) and component.text.strip():
+                has_command_text = True
+            if isinstance(component, AtAll):
+                raise ValueError("请 @ 一位具体用户，暂不支持 @全体成员。")
+            if not isinstance(component, At):
+                continue
+
+            target_id = str(component.qq).strip()
+            if target_id == "all":
+                raise ValueError("请 @ 一位具体用户，暂不支持 @全体成员。")
+            if not re.fullmatch(r"[0-9]+", target_id) or not target_id.strip("0"):
+                logger.warning(f"无法解析被 @ 用户的 QQ 号: {component.qq!r}")
+                raise ValueError("无法识别被 @ 用户的 QQ 号，请重新 @ 一位用户。")
+
+            target_id = target_id.lstrip("0")
+            # 命令前用于唤醒机器人的 @ 会保留在消息链中。
+            if target_id == self_id and not has_command_text:
+                continue
+            return target_id, component.name or target_id
+
+        return None
+
     # --- 核心功能实现 ---
 
     @filter.command("摸摸")
@@ -123,24 +152,15 @@ class TouchHeadPlugin(star.Star):
             sender_name = str(sender_id)
 
         # 2. 解析 @ 目标
-        target_user = None
-        for component in event.message_obj.message:
-            if hasattr(component, "type") and component.type == "at":
-                target_id = component.data.get("qq") or component.data.get("user_id")
-                if target_id:
-                    target_user = {
-                        "user_id": str(target_id),
-                        "nickname": component.data.get("name", str(target_id)),
-                    }
-                    logger.info(
-                        f"检测到@用户: {target_user['nickname']} ({target_user['user_id']})"
-                    )
-                    break
+        try:
+            target_user = self._resolve_mentioned_user(event)
+        except ValueError as e:
+            return event.plain_result(str(e))
 
         # 3. 确定最终目标
         if target_user:
-            target_name = target_user["nickname"]
-            target_id = target_user["user_id"]
+            target_id, target_name = target_user
+            logger.info(f"检测到@用户: {target_name} ({target_id})")
             action_desc = f"{sender_name} 摸了摸 {target_name}"
         else:
             target_name = sender_name
@@ -171,7 +191,7 @@ class TouchHeadPlugin(star.Star):
             logger.error(f"处理摸头杀命令时发生错误: {e}", exc_info=True)
             return event.plain_result("发生内部错误，无法处理您的请求。")
 
-    # --- 头像获取与 GIF 生成（逻辑不变） ---
+    # --- 头像获取与 GIF 生成 ---
 
     async def _get_user_avatar_by_id(
         self, event: AstrMessageEvent, user_id: str
@@ -283,7 +303,7 @@ class TouchHeadPlugin(star.Star):
                         avatar_frame = user_image
 
                     canvas.paste(avatar_frame, (avatar_x, avatar_y), avatar_frame)
-                    canvas = Image.alpha_composite(canvas, hand_frame)
+                    canvas.alpha_composite(hand_frame, dest=(0, -5))
                     frames.append(canvas.convert("RGB"))
 
             if frames:
