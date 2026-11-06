@@ -13,12 +13,11 @@ data/
 __pycache__/
 *.pyc
 
-# Keep plugin source and assets
-!astrbot_plugin_petpet/
-!astrbot_plugin_petpet/**
-
-# Exclude generated/demo artifacts in plugin assets
-astrbot_plugin_petpet/data/petpet.zip
-astrbot_plugin_petpet/data/petpet/*.gif
+# Keep bundled templates; other data and generated assets stay ignored
+!/data/
+/data/*
+!/data/petpet/
+/data/petpet/*
+!/data/petpet/frame*.png
 
 .trae/documents/plan_20260214_062419.md
