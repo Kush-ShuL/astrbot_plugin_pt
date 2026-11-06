@@ -28,10 +28,13 @@ class TouchHeadPlugin(star.Star):
         self.output_dir = self.data_dir / "output"
         self.output_dir.mkdir(parents=True, exist_ok=True)
 
-        self.assets_dir = Path(__file__).parent / "assets"
-        if not self.assets_dir.exists():
-            self.assets_dir.mkdir(parents=True, exist_ok=True)
-            logger.warning(f"资源目录不存在，已创建空目录: {self.assets_dir}")
+        # 模板帧实际存放在 data/petpet/frame*.png（随仓库一起发布）。
+        self.assets_dir = Path(__file__).parent / "data" / "petpet"
+        if not self.assets_dir.is_dir():
+            logger.error(
+                f"模板资源目录缺失: {self.assets_dir}，摸头杀功能将不可用；"
+                "请确认插件包完整（需包含 data/petpet/frame*.png）"
+            )
 
         self._cleanup_task: Optional[asyncio.Task] = None
         self._is_terminating = False
@@ -158,8 +161,11 @@ class TouchHeadPlugin(star.Star):
             if gif_path and gif_path.exists():
                 # 关键修复：使用 event.image_result() 而不是 await event.send_message()
                 return event.image_result(str(gif_path))
-            else:
-                return event.plain_result("生成摸头杀图片失败，请稍后再试。")
+            if not sorted(self.assets_dir.glob("frame*.png")):
+                return event.plain_result(
+                    "摸头杀模板资源缺失，请联系管理员补齐 data/petpet/frame*.png。"
+                )
+            return event.plain_result("生成摸头杀图片失败，请稍后再试。")
 
         except Exception as e:
             logger.error(f"处理摸头杀命令时发生错误: {e}", exc_info=True)
