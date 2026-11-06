@@ -158,6 +158,60 @@ class MentionCommandTests(unittest.IsolatedAsyncioTestCase):
             with self.subTest(messages=messages):
                 await self.assert_target(messages, "123456", "发送者")
 
+    async def test_self_id_getter_failure_uses_message_self_id(self):
+        for error in (AttributeError("not available"), RuntimeError("adapter failure")):
+            with self.subTest(error=error):
+                self.plugin._download_image.reset_mock()
+                event = FakeEvent(
+                    [At(qq="100001"), Plain(" /摸摸 "), At(qq="234567", name="目标")]
+                )
+                event.get_self_id = Mock(side_effect=error)
+                result = await self.plugin.handle_command(event)
+                self.assertEqual(result, ("image", str(self.gif_path)))
+                self.plugin._download_image.assert_awaited_once_with(
+                    "https://q1.qlogo.cn/g?b=qq&nk=234567&s=640"
+                )
+
+    async def test_empty_or_invalid_self_id_uses_message_self_id(self):
+        for self_id in (None, "", " ", "not-a-qq", "000"):
+            with self.subTest(self_id=self_id):
+                self.plugin._download_image.reset_mock()
+                event = FakeEvent(
+                    [At(qq="100001"), Plain(" /摸摸 "), At(qq="234567", name="目标")]
+                )
+                event.get_self_id = Mock(return_value=self_id)
+                result = await self.plugin.handle_command(event)
+                self.assertEqual(result, ("image", str(self.gif_path)))
+                self.plugin._download_image.assert_awaited_once_with(
+                    "https://q1.qlogo.cn/g?b=qq&nk=234567&s=640"
+                )
+
+    async def test_unknown_self_id_rejects_ambiguous_leading_mention(self):
+        for self_id in (None, "", "not-a-qq", "0"):
+            with self.subTest(self_id=self_id):
+                event = FakeEvent([At(qq="100001"), Plain(" /摸摸")], self_id=self_id)
+                event.get_self_id = Mock(side_effect=AttributeError("not available"))
+                result = await self.plugin.handle_command(event)
+                self.assertEqual(result[0], "text")
+                self.assertIn("机器人", result[1])
+                self.plugin._download_image.assert_not_awaited()
+                self.plugin._build_petpet_gif.assert_not_called()
+
+    async def test_unknown_self_id_allows_no_mention_or_explicit_target(self):
+        for messages, target_id in (
+            ([Plain("/摸摸")], "123456"),
+            ([Plain("/摸摸 "), At(qq="234567")], "234567"),
+        ):
+            with self.subTest(messages=messages):
+                self.plugin._download_image.reset_mock()
+                event = FakeEvent(messages, self_id=None)
+                event.get_self_id = Mock(side_effect=AttributeError("not available"))
+                result = await self.plugin.handle_command(event)
+                self.assertEqual(result, ("image", str(self.gif_path)))
+                self.plugin._download_image.assert_awaited_once_with(
+                    f"https://q1.qlogo.cn/g?b=qq&nk={target_id}&s=640"
+                )
+
     async def test_first_user_mention_is_selected(self):
         await self.assert_target(
             [Plain("/摸摸 "), At(qq="234567", name="第一位"), At(qq="345678", name="第二位")],

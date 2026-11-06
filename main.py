@@ -112,7 +112,22 @@ class TouchHeadPlugin(star.Star):
         self, event: AstrMessageEvent
     ) -> Optional[Tuple[str, str]]:
         """返回首个被 @ 用户；无目标返回 None，无效提及抛出 ValueError。"""
-        self_id = str(event.get_self_id()).strip().lstrip("0")
+        self_id = ""
+        try:
+            self_id = str(event.get_self_id() or "").strip().lstrip("0")
+        except Exception as e:
+            logger.debug(f"get_self_id 不可用: {e}")
+
+        if not re.fullmatch(r"[0-9]+", self_id):
+            try:
+                message_obj = getattr(event, "message_obj", None)
+                self_id = str(getattr(message_obj, "self_id", "") or "").strip().lstrip("0")
+            except Exception as e:
+                logger.debug(f"从 message_obj.self_id 回退解析失败: {e}")
+                self_id = ""
+        if not re.fullmatch(r"[0-9]+", self_id):
+            self_id = ""
+
         has_command_text = False
         for component in event.get_messages():
             if isinstance(component, Plain) and component.text.strip():
@@ -131,8 +146,11 @@ class TouchHeadPlugin(star.Star):
 
             target_id = target_id.lstrip("0")
             # 命令前用于唤醒机器人的 @ 会保留在消息链中。
-            if target_id == self_id and not has_command_text:
-                continue
+            if not has_command_text:
+                if not self_id:
+                    raise ValueError("无法识别机器人账号，请使用 /摸摸 @用户 明确指定目标。")
+                if target_id == self_id:
+                    continue
             return target_id, component.name or target_id
 
         return None
