@@ -23,6 +23,8 @@ class TouchHeadPlugin(star.Star):
     def __init__(self, context: star.Context, config: Optional[dict] = None):
         super().__init__(context)
         self.config = config if config is not None else {}
+        if config is None:
+            logger.warning("AstrBot 未注入摸头杀插件配置，将使用默认速度 1.0；请检查 AstrBot 版本及插件配置。")
         logger.info("摸头杀插件正在初始化...")
 
         self.data_dir = StarTools.get_data_dir()

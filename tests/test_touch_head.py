@@ -105,6 +105,17 @@ TouchHeadPlugin = plugin_module.TouchHeadPlugin
 
 
 class PluginInitializationTests(unittest.TestCase):
+    def test_missing_injected_config_logs_warning_and_uses_default_speed(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            with patch.object(
+                plugin_module.StarTools, "get_data_dir", create=True, return_value=Path(temp_dir)
+            ), patch.object(plugin_module.logger, "warning") as warning:
+                plugin = TouchHeadPlugin(context=object())
+            self.assertEqual(plugin.config, {})
+            warning.assert_called_once()
+            self.assertIn("未注入", warning.call_args.args[0])
+            self.assertEqual(plugin._get_frame_duration(), 100)
+
     def test_astrbot_injected_config_is_used_for_gif_generation(self):
         config = {"patpat": {"speed": 2.0}}
         with tempfile.TemporaryDirectory() as temp_dir:
