@@ -86,7 +86,6 @@ def load_plugin():
     star.StarTools = SimpleNamespace()
     modules["astrbot.api"].star = star
     modules["astrbot.api"].logger = Mock()
-    modules["astrbot.api"].AstrBotConfig = dict
     event_api = modules["astrbot.api.event"]
     event_api.AstrMessageEvent = FakeEvent
     event_api.filter = SimpleNamespace(command=lambda name: lambda handler: handler)

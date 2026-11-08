@@ -9,7 +9,7 @@ from typing import Optional, Tuple
 from PIL import Image
 import aiohttp
 
-from astrbot.api import AstrBotConfig, star, logger
+from astrbot.api import star, logger
 from astrbot.api.event import AstrMessageEvent, filter
 from astrbot.api.message_components import At, AtAll, Plain
 from astrbot.api.star import StarTools
@@ -20,9 +20,7 @@ Image.MAX_IMAGE_PIXELS = 10_000_000
 class TouchHeadPlugin(star.Star):
     """摸头杀插件主类。"""
 
-    def __init__(
-        self, context: star.Context, config: Optional[AstrBotConfig] = None
-    ):
+    def __init__(self, context: star.Context, config: Optional[dict] = None):
         super().__init__(context)
         self.config = config if config is not None else {}
         logger.info("摸头杀插件正在初始化...")
